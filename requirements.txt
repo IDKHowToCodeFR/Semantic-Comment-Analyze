@@ -1,0 +1,12 @@
+setfit<1.0.0
+datasets>=2.20.0
+fastapi
+uvicorn
+python-multipart
+numpy
+pandas
+plotly
+sentence-transformers
+torch
+transformers
+scikit-learn

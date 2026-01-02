@@ -1,0 +1,7 @@
+.python-version
+pyproject.toml
+.venv
+uv.lock
+__pycache__
+.pytest_cache
+DESIGN.md
