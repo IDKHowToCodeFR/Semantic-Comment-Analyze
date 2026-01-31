@@ -1,54 +1,63 @@
-# Semantic Comment Analysis
+# Semantic Comment Analysis Platform
 
-A production-ready, full-stack application for the deep semantic analysis of customer feedback, support tickets, and open-ended text. The system leverages state-of-the-art transformer models to provide automated intent classification, semantic sentiment scoring, and a unique **Occlusion-based Explainability Engine** that visually highlights how specific vocabulary drives AI decision-making.
+A high-performance, production-ready Natural Language Processing (NLP) pipeline for the semantic analysis of customer feedback, support tickets, and open-ended text. The system leverages state-of-the-art transformer models for embedding extraction, intent classification, sentiment analysis, and named entity recognition, layered with an Explainability Engine and Business Heuristics.
 
 ## Core NLP Capabilities
 
-### 1. Zero-Shot Intent Classification
-Powered by **BART-Large-MNLI** (`facebook/bart-large-mnli`), the system frames intent classification as a Natural Language Inference (NLI) problem. It classifies incoming text against predefined intents without requiring task-specific fine-tuning:
-- **Bug Report**
-- **Complaint**
-- **Feature Request**
-- **Praise**
-- **Question**
+### 1. Intent Classification & Embeddings
+The engine abandons slow zero-shot classification in favor of a fast, custom-trained classifier head:
+- **Embeddings**: Uses **Sentence Transformers** (`all-MiniLM-L6-v2`) to map incoming text into a highly dense semantic vector space.
+- **Classification Head**: Embeddings are passed through a lightweight Logistic Regression / SVM head (`local_model_head.pkl`) capable of handling thousands of requests per second with high accuracy.
+- **Dynamic Labels**: Supports dynamic classification (e.g., Bug Report, Complaint, Feature Request, Praise, Question).
 
-### 2. Multi-Intent Explainability (Occlusion Algorithm)
-To eliminate the "black box" nature of Large Language Models, the engine implements a custom occlusion algorithm:
-- It iteratively masks (occludes) every single word in a given text.
-- It re-runs the classification pipeline for each masked variation.
-- By measuring the delta in confidence drops across *all 5 intents simultaneously*, it calculates exactly how much each word pushed or pulled the model toward a specific intent.
-- **Result**: A highly detailed, multi-color heatmap where every word glows with the color of the intent it primarily triggered, scaled by its contribution percentage.
+### 2. Multi-Intent Explainability (Occlusion Engine)
+To eliminate the "black box" nature of machine learning predictions, the system implements a custom Occlusion-based Explainability Algorithm:
+- Iteratively masks (occludes) every single word in a given text.
+- Re-runs the classification head for each masked variation to measure confidence delta.
+- Calculates exact word-level contributions, revealing precisely which vocabulary pushed or pulled the model toward a specific intent.
 
-### 3. Semantic Sentiment Analysis
-Instead of traditional lexicon-based sentiment, the system uses **Sentence Transformers** (`sentence-transformers/all-MiniLM-L6-v2`) to map the text into a dense semantic vector space. 
-- It calculates the Cosine Similarity between the input embedding and carefully crafted anchor embeddings (representing "Positive", "Neutral", and "Negative" concepts).
-- This results in a highly contextual, continuous sentiment spectrum rather than rigid binary labels.
+### 3. Sentiment & Entity Extraction
+- **Sentiment Analysis**: Leverages robust Hugging Face Transformers (`pipeline("sentiment-analysis")`) to provide high-confidence Positive/Negative/Neutral classifications.
+- **Named Entity Recognition (NER)**: Extracts critical entities (`pipeline("ner")`) such as Organizations, Locations, and Persons to provide contextual metadata alongside the semantic analysis.
 
-## Architecture
+### 4. Business Heuristics Layer
+ML predictions are fed into a deterministic `evaluation.py` module to extract actionable business insights:
+- **Urgency Detection**: Flags high-priority tickets based on sentiment depth and specific intent triggers.
+- **Tone Mapping**: Translates raw ML sentiment arrays into human-readable customer tones (e.g., Frustrated, Satisfied, Neutral).
+- **Recommended Actions**: Maps the final semantic profile to a standard operating procedure (e.g., "Escalate to Support", "Route to Product Team").
 
-The application operates on a decoupled client-server architecture, providing a highly responsive Next.js frontend communicating with a high-performance FastAPI Python backend.
+## System Architecture
+
+The application is built on a decoupled architecture, exposing a high-performance **FastAPI** REST interface.
 
 ```mermaid
 graph TD
-    subaxis[Client-Side]
-    A[Next.js React Frontend] -->|REST API Request| B(FastAPI Server)
+    A[Client Request] -->|REST API| B(FastAPI Server)
     
-    subaxis[Server-Side]
+    subaxis[NLP Pipeline]
     B --> C{NLP Engine}
-    C -->|Zero-Shot Inference| D[BART-MNLI Model]
-    C -->|Embeddings| E[MiniLM-L6 Model]
-    C -->|Explainability Loop| F[Occlusion Algorithm]
-    D --> G[Intent & Confidence]
-    E --> H[Semantic Sentiment]
-    F --> I[Word-Level Contributions]
-    G --> J[Aggregated JSON Response]
-    H --> J
-    I --> J
+    C -->|Embeddings| D[MiniLM-L6 Model]
+    D --> E[Custom Classifier Head]
+    C --> F[HF Sentiment Pipeline]
+    C --> G[HF NER Pipeline]
+    C --> H[Occlusion Algorithm]
     
-    J -->|REST API Response| A
+    subaxis[Business Logic]
+    E --> I[Intent & Confidence]
+    F --> J[Sentiment]
+    G --> K[Entities]
+    I --> L(Heuristics Evaluator)
+    J --> L
+    L --> M[Urgency, Tone, Action]
+    
+    M --> N[Aggregated JSON Response]
+    H -->|Word-Level Explanations| N
+    K --> N
+    
+    N -->|REST API Response| A
 ```
 
-### Directory Structure
+## Directory Structure
 
 ```text
 Semantic-Comment-Analyze/
@@ -56,75 +65,67 @@ Semantic-Comment-Analyze/
 │   ├── api/
 │   │   └── server.py         # FastAPI application and endpoint routing
 │   ├── engine/
-│   │   └── nlp_engine.py     # Transformer models, occlusion, and inference logic
-├── frontend/
-│   ├── src/
-│   │   ├── app/              # Next.js App Router (Layout, Pages)
-│   │   └── components/       # React components (Heatmap, Radar, Layouts)
-│   ├── tailwind.config.ts    # Design tokens and theming
-│   └── package.json          # Node.js dependencies
-└── requirements.txt          # Python dependencies
+│   │   ├── nlp_engine.py     # Transformer models, occlusion, and inference logic
+│   │   ├── topic_modeler.py  # Unsupervised topic clustering
+│   │   └── evaluation.py     # Business heuristics (Urgency, Tone, Actions)
+│   └── data/
+│       └── data_handler.py   # High-throughput CSV/Batch processing
+├── data/
+│   ├── local_model_head.pkl  # Trained classifier weights
+│   └── label_mapping.txt     # Dynamic intent labels
+├── tests/                    # Pytest suite
+├── requirements.txt          # Python dependencies
+└── pyproject.toml            # Project configuration
 ```
 
 ## Getting Started
 
 ### Prerequisites
-- **Python 3.8+**
-- **Node.js 18+**
-- **4GB+ RAM** (Models are cached locally after the first ~1.7GB download)
+- **Python 3.13+**
+- **4GB+ RAM** (Models are cached locally after initial download)
 
-### 1. Backend Setup (FastAPI + Transformers)
+### 1. Environment Setup
 ```bash
-# Create and activate a virtual environment
+# Using uv (Recommended)
+uv sync
+
+# Or using standard pip
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Mac/Linux: source .venv/bin/activate
-
-# Install dependencies
+.venv\Scripts\activate
 pip install -r requirements.txt
-
-# Start the NLP server
-python src/api/server.py
 ```
 
-### 2. Frontend Setup (Next.js)
-The frontend can be run in development mode or exported statically to be served directly by FastAPI.
-
+### 2. Running the NLP Server
+Start the FastAPI server via Uvicorn:
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Option A: Run Next.js Development Server (Hot Reloading)
-npm run dev
-# App will be live at http://localhost:3000
-
-# Option B: Build Static Export (Served by FastAPI)
-npm run build
-# App will be accessible through the Python server at http://127.0.0.1:8000
+python -m uvicorn src.api.server:app --reload
+# App will be accessible at http://127.0.0.1:8000
 ```
 
-## Features
+## API Integration
 
-### Interactive UI Dashboard
-- **Single Analysis View**: Paste any text to instantly see the Top Intents, a Radar Chart of intent distribution, Sentiment breakdown, and the Multi-Color Explainability Heatmap.
-- **Batch Processing Dashboard**: Upload a CSV of hundreds of comments. The engine will rapidly process them, yielding an interactive data table and a downloadable report with appended NLP insights.
+The core endpoint `POST /api/analyze` accepts raw text and returns rich, structured JSON, making it trivial to integrate this engine into existing microservices, data lakes, or support portals.
 
-### API Integration
-The core endpoint `POST /api/analyze` accepts text and returns rich, structured JSON, making it trivial to integrate this engine into existing pipelines or microservices.
-
-## Customization
-To tailor the NLP engine to a specific domain (e.g., Medical, Legal, or E-commerce), you can effortlessly modify the labels in `src/engine/nlp_engine.py`:
-```python
-INTENT_LABELS = [
-    "Shipping Inquiry",
-    "Refund Request",
-    "Product Praise",
-    "Inventory Question"
-]
+**Example Request**:
+```json
+{
+  "text": "The app crashes every time I try to upload a PDF file!"
+}
 ```
-The Zero-Shot BART model will dynamically adjust and begin classifying against your custom labels immediately.
 
----
-**Version:** 3.0.0 (FastAPI + Next.js Architecture)
+**Example Response**:
+```json
+{
+  "intent": "Bug Report",
+  "confidence": 0.94,
+  "sentiment": "NEGATIVE",
+  "urgency": "High",
+  "tone": "Frustrated",
+  "recommended_action": "Escalate to Engineering",
+  "entities": [],
+  "explanation": [
+    {"word": "crashes", "contribution": 0.42, "primary_intent": "Bug Report"},
+    {"word": "every", "contribution": 0.12, "primary_intent": "Bug Report"}
+  ]
+}
+```
