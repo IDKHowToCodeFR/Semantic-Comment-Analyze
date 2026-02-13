@@ -48,3 +48,15 @@ def recommend_action(intent: str, urgency: str, sentiment: dict[str, Any]) -> st
     elif intent == "Praise":
         return "Share with Team"
     return "No Action Needed"
+
+
+def evaluate_business_context(intent: str, sentiment: dict[str, Any]) -> dict[str, str]:
+    """Orchestrates business rules and returns a consolidated context."""
+    tone = analyze_tone(intent, sentiment)
+    urgency = calculate_urgency(intent, sentiment)
+    action = recommend_action(intent, urgency, sentiment)
+    return {
+        "tone": tone,
+        "urgency": urgency,
+        "recommended_action": action
+    }

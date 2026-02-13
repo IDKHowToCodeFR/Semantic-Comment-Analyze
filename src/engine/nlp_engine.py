@@ -1,5 +1,6 @@
 """NLP engine for semantic analysis using transformer models."""
 
+import asyncio
 import os
 from functools import lru_cache
 from typing import Any
@@ -201,3 +202,19 @@ def extract_entities_batch(texts: list[str]) -> list[list[dict[str, Any]]]:
     # Batch process ignoring empty strings where possible
     batch_results = ner([t[:2000] for t in valid_texts], batch_size=32)
     return batch_results
+
+
+async def analyze_full(text: str, threshold: float = 0.5, include_explanation: bool = False) -> dict[str, Any]:
+    """Orchestrates ML inference completely behind the scenes, using thread pools."""
+    intent = await asyncio.to_thread(classify_intent, text, threshold)
+    sentiment = await asyncio.to_thread(analyze_sentiment, text)
+    
+    explainability = []
+    if include_explanation:
+        explainability = await asyncio.to_thread(explain_intent, text)
+        
+    return {
+        "intent": intent,
+        "sentiment": sentiment,
+        "explainability": explainability,
+    }

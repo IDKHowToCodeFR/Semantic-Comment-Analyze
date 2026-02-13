@@ -7,21 +7,7 @@ from typing import Generator
 import codecs
 
 
-def process_single_comment(comment: str) -> dict:
-    if not comment or not comment.strip():
-        return {"error": "Empty comment"}
-
-    intent_result = nlp_engine.classify_intent(comment)
-    sentiment_result = nlp_engine.analyze_sentiment(comment)
-    entities = nlp_engine.extract_entities(comment)
-
-    return {
-        "intent": intent_result["top_intent"],
-        "confidence": float(f"{intent_result['top_confidence']:.2f}"),
-        "sentiment": sentiment_result["label"],
-        "sentiment_score": float(f"{sentiment_result['score']:.2f}"),
-        "entities": [e["word"] for e in entities],
-    }
+from src.engine import evaluation
 
 
 def stream_csv(file_obj, target_column="text") -> Generator[str, None, None]:
@@ -45,7 +31,7 @@ def stream_csv(file_obj, target_column="text") -> Generator[str, None, None]:
     target_column_upper = target_column.upper()
 
     output = io.StringIO()
-    new_fields = original_fieldnames_upper + ["INTENT", "CONFIDENCE", "SENTIMENT", "SENTIMENT_SCORE"]
+    new_fields = original_fieldnames_upper + ["INTENT", "CONFIDENCE", "SENTIMENT", "SENTIMENT_SCORE", "TONE", "URGENCY", "RECOMMENDED_ACTION"]
     writer = csv.DictWriter(output, fieldnames=new_fields)
     writer.writeheader()
     yield output.getvalue()
@@ -69,10 +55,18 @@ def _process_chunk(chunk: list[dict], target_column: str, writer: csv.DictWriter
     sentiment_results = nlp_engine.analyze_sentiments_batch(texts)
     
     for i, row in enumerate(chunk):
-        row["INTENT"] = intent_results[i]["top_intent"]
+        intent = intent_results[i]["top_intent"]
+        sentiment = sentiment_results[i]
+        
+        ctx = evaluation.evaluate_business_context(intent, sentiment)
+        
+        row["INTENT"] = intent
         row["CONFIDENCE"] = f"{intent_results[i]['top_confidence']:.2f}"
-        row["SENTIMENT"] = sentiment_results[i]["label"]
-        row["SENTIMENT_SCORE"] = f"{sentiment_results[i]['score']:.2f}"
+        row["SENTIMENT"] = sentiment["label"]
+        row["SENTIMENT_SCORE"] = f"{sentiment['score']:.2f}"
+        row["TONE"] = ctx["tone"]
+        row["URGENCY"] = ctx["urgency"]
+        row["RECOMMENDED_ACTION"] = ctx["recommended_action"]
         
     output.seek(0)
     output.truncate(0)
