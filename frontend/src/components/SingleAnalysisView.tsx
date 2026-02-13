@@ -99,7 +99,7 @@ export const SingleAnalysisView = () => {
       const res = await fetch("http://127.0.0.1:8000/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, threshold }),
+        body: JSON.stringify({ text, threshold, include_explanation: true }),
       });
 
       if (!res.ok) throw new Error(await res.text());
