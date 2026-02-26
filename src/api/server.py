@@ -4,7 +4,7 @@ import os
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -38,7 +38,7 @@ def analyze_text(request: AnalyzeRequest):
         # Ponytail Ultra features
         tone = evaluation.analyze_tone(intent["top_intent"], sentiment)
         urgency = evaluation.calculate_urgency(intent["top_intent"], sentiment)
-        action = evaluation.recommend_action(intent["top_intent"], urgency)
+        action = evaluation.recommend_action(intent["top_intent"], urgency, sentiment)
 
         return {
             "intent": intent,
@@ -60,17 +60,8 @@ def process_batch(
     targetColumn: str = Form("text"),
 ):
     try:
-        contents = file.file.read()
-        f = io.BytesIO(contents)
-        f.name = file.filename
-
-        csv_str = data_handler.process_csv(f, target_column=targetColumn)
-
-        if csv_str.startswith("Error"):
-            raise HTTPException(status_code=400, detail=csv_str)
-
-        return PlainTextResponse(content=csv_str, media_type="text/csv")
-
+        generator = data_handler.stream_csv(file.file, target_column=targetColumn)
+        return StreamingResponse(generator, media_type="text/csv")
     except Exception as e:
         logger.exception("Error during batch processing")
         raise HTTPException(status_code=500, detail=str(e))

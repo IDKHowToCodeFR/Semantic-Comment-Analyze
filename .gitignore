@@ -6,3 +6,18 @@ __pycache__
 .pytest_cache
 DESIGN.md
 .ruff_cache
+# Heavy/Useless Modules & OS Files
+node_modules/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+.env
+.env.local
+build/
+dist/
+*.egg-info/
+data/*.pkl
+
+models/

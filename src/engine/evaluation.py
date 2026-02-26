@@ -6,6 +6,7 @@ from typing import Any
 def analyze_tone(intent: str, sentiment: dict[str, Any]) -> str:
     label = sentiment.get("label", "NEUTRAL")
     score = sentiment.get("score", 0.0)
+    if label == "NEGATIVE (SARCASTIC)": return "Mocking"
 
     if intent == "Bug Report":
         return "Frustrated" if label == "NEGATIVE" else "Concerned"
@@ -23,6 +24,7 @@ def analyze_tone(intent: str, sentiment: dict[str, Any]) -> str:
 def calculate_urgency(intent: str, sentiment: dict[str, Any]) -> str:
     label = sentiment.get("label", "NEUTRAL")
     score = sentiment.get("score", 0.0)
+    if label == "NEGATIVE (SARCASTIC)": return "High"
 
     if intent == "Bug Report":
         return "High" if label == "NEGATIVE" else "Medium"
@@ -33,7 +35,8 @@ def calculate_urgency(intent: str, sentiment: dict[str, Any]) -> str:
     return "Low"
 
 
-def recommend_action(intent: str, urgency: str) -> str:
+def recommend_action(intent: str, urgency: str, sentiment: dict[str, Any]) -> str:
+    if sentiment and sentiment.get("label") == "NEGATIVE (SARCASTIC)": return "Damage Control"
     if intent == "Bug Report":
         return "Log Jira Ticket" if urgency == "High" else "Monitor Issue"
     elif intent == "Feature Request":

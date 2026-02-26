@@ -10,3 +10,5 @@ sentence-transformers
 torch
 transformers
 scikit-learn
+evaluate
+accelerate

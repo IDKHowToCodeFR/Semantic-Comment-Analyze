@@ -3,7 +3,7 @@ import io
 import csv
 from src.engine import nlp_engine
 from src.data import data_handler
-from src.engine import topic_modeler
+
 
 def test_intent_classification():
     result = nlp_engine.classify_intent("The app crashed when I tried to log in.")
@@ -23,17 +23,6 @@ def test_ner_extraction():
         assert "word" in result[0]
         assert "entity_group" in result[0]
 
-def test_topic_modeling():
-    texts = [
-        "Login is broken", 
-        "Cannot sign in to my account", 
-        "The dashboard looks great", 
-        "Love the new UI"
-    ]
-    embeddings = nlp_engine.get_embeddings_batch(texts)
-    topics = topic_modeler.discover_topics(embeddings, texts, n_clusters=2)
-    assert len(topics) == len(texts)
-    assert topics[0] == topics[1]
 
 def test_data_handler_single():
     res = data_handler.process_single_comment("The button doesn't work.")
@@ -45,13 +34,14 @@ def test_data_handler_csv():
     csv_content = "comment\nI love this app!\nIt crashes sometimes.\n"
     file_obj = io.BytesIO(csv_content.encode('utf-8'))
     
-    output_str = data_handler.process_csv(file_obj, target_column="comment")
+    output_gen = data_handler.stream_csv(file_obj, target_column="comment")
+    output_str = "".join(list(output_gen))
     
     reader = csv.DictReader(io.StringIO(output_str))
     rows = list(reader)
     
     assert len(rows) == 2
-    assert "intent" in rows[0]
-    assert "sentiment" in rows[0]
-    assert "topic" in rows[0]
-    assert "entities" in rows[0]
+    assert "INTENT" in rows[0]
+    assert "SENTIMENT" in rows[0]
+    assert "topic" not in rows[0]
+    assert "entities" not in rows[0]

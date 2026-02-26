@@ -10,7 +10,12 @@ if %ERRORLEVEL% equ 0 (
     set USE_UV=1
     echo [INFO] uv found. Fast path activated.
     echo [INFO] Syncing environment...
+    if not exist pyproject.toml (
+        uv init
+    )
+    uv add -r requirements.txt
     uv sync
+    uv lock
     if %ERRORLEVEL% neq 0 goto :error
 ) else (
     set USE_UV=0
