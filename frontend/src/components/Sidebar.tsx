@@ -1,7 +1,7 @@
 import React from "react";
 import { LayoutDashboard, Database } from "lucide-react";
 
-export type ViewType = "single" | "batch";
+export type ViewType = "single" | "batch" | "about";
 
 export const Sidebar = ({
   activeView,
@@ -44,6 +44,18 @@ export const Sidebar = ({
         >
           <Database size={18} />
           Batch Processing
+        </button>
+
+        <button
+          onClick={() => onViewChange("about")}
+          className={`flex items-center gap-3 px-4 py-2.5 rounded-md text-[14px] font-sans font-medium transition-colors ${
+            activeView === "about"
+              ? "bg-surface-strong text-ink"
+              : "text-body hover:bg-canvas hover:text-ink"
+          }`}
+        >
+          <LayoutDashboard size={18} />
+          About NLP Engine
         </button>
       </nav>
     </aside>

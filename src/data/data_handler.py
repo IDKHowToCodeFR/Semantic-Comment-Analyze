@@ -1,6 +1,10 @@
 import csv
 import io
-from src.engine import nlp_engine, topic_modeler
+from src.engine import nlp_engine
+
+
+from typing import Generator
+import codecs
 
 
 def process_single_comment(comment: str) -> dict:
@@ -13,54 +17,64 @@ def process_single_comment(comment: str) -> dict:
 
     return {
         "intent": intent_result["top_intent"],
-        "confidence": intent_result["top_confidence"],
+        "confidence": float(f"{intent_result['top_confidence']:.2f}"),
         "sentiment": sentiment_result["label"],
-        "sentiment_score": sentiment_result["score"],
+        "sentiment_score": float(f"{sentiment_result['score']:.2f}"),
         "entities": [e["word"] for e in entities],
     }
 
 
-def process_csv(file_obj, target_column="text") -> str:
+def stream_csv(file_obj, target_column="text") -> Generator[str, None, None]:
     try:
-        text_data = file_obj.read().decode("utf-8", errors="replace")
-    except Exception as e:  # noqa: BLE001
-        return f"Error: Failed to decode file. {e!s}"
-
-    reader = csv.DictReader(io.StringIO(text_data))
+        decoded_file = codecs.iterdecode(file_obj, "utf-8", errors="replace")
+        reader = csv.DictReader(decoded_file)
+    except Exception as e:
+        yield f"Error: Failed to decode file. {e!s}\n"
+        return
 
     if not reader.fieldnames:
-        return "Error: Invalid CSV format or empty file."
+        yield "Error: Invalid CSV format or empty file.\n"
+        return
 
     if target_column not in reader.fieldnames:
-        return f"Error: CSV must contain a '{target_column}' column. Found: {', '.join(reader.fieldnames)}"
+        yield f"Error: CSV must contain a '{target_column}' column. Found: {', '.join(reader.fieldnames)}\n"
+        return
 
-    rows = list(reader)
-    if not rows:
-        return "Error: CSV is empty."
-
-    texts = [row.get(target_column, "") for row in rows]
-
-    # Compute embeddings exactly ONCE
-    embeddings = nlp_engine.get_embeddings_batch(texts)
-
-    intent_results = nlp_engine.classify_intents_batch(texts, embeddings=embeddings)
-    topics = topic_modeler.discover_topics(embeddings, texts)
-
-    sentiment_results = nlp_engine.analyze_sentiments_batch(texts)
-    entities_results = nlp_engine.extract_entities_batch(texts)
-
-    for i, row in enumerate(rows):
-        row["intent"] = intent_results[i]["top_intent"]
-        row["confidence"] = intent_results[i]["top_confidence"]
-        row["sentiment"] = sentiment_results[i]["label"]
-        row["sentiment_score"] = sentiment_results[i]["score"]
-        row["entities"] = ", ".join([e["word"] for e in entities_results[i]])
-        row["topic"] = topics[i]
+    original_fieldnames_upper = [f.upper() for f in reader.fieldnames]
+    reader.fieldnames = original_fieldnames_upper
+    target_column_upper = target_column.upper()
 
     output = io.StringIO()
-    if rows:
-        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
-        writer.writeheader()
-        writer.writerows(rows)
+    new_fields = original_fieldnames_upper + ["INTENT", "CONFIDENCE", "SENTIMENT", "SENTIMENT_SCORE"]
+    writer = csv.DictWriter(output, fieldnames=new_fields)
+    writer.writeheader()
+    yield output.getvalue()
+    
+    chunk = []
+    for row in reader:
+        chunk.append(row)
+        if len(chunk) == 32:
+            yield _process_chunk(chunk, target_column_upper, writer, output)
+            chunk = []
+            
+    if chunk:
+        yield _process_chunk(chunk, target_column_upper, writer, output)
 
+
+def _process_chunk(chunk: list[dict], target_column: str, writer: csv.DictWriter, output: io.StringIO) -> str:
+    texts = [row.get(target_column, "") for row in chunk]
+    
+    embeddings = nlp_engine.get_embeddings_batch(texts)
+    intent_results = nlp_engine.classify_intents_batch(texts, embeddings=embeddings)
+    sentiment_results = nlp_engine.analyze_sentiments_batch(texts)
+    
+    for i, row in enumerate(chunk):
+        row["INTENT"] = intent_results[i]["top_intent"]
+        row["CONFIDENCE"] = f"{intent_results[i]['top_confidence']:.2f}"
+        row["SENTIMENT"] = sentiment_results[i]["label"]
+        row["SENTIMENT_SCORE"] = f"{sentiment_results[i]['score']:.2f}"
+        
+    output.seek(0)
+    output.truncate(0)
+    writer.writerows(chunk)
     return output.getvalue()

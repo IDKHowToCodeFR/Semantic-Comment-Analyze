@@ -66,7 +66,8 @@ Semantic-Comment-Analyze/
 │   │   └── server.py         # FastAPI application and endpoint routing
 │   ├── engine/
 │   │   ├── nlp_engine.py     # Transformer models, occlusion, and inference logic
-│   │   ├── topic_modeler.py  # Unsupervised topic clustering
+│   │   ├── train_intent.py   # Train custom Intent Classifier head
+│   │   ├── train_sentiment.py # Fine-tune HF RoBERTa Sentiment Model
 │   │   └── evaluation.py     # Business heuristics (Urgency, Tone, Actions)
 │   └── data/
 │       └── data_handler.py   # High-throughput CSV/Batch processing
@@ -95,7 +96,20 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2. Running the NLP Server
+### 2. Custom Model Training
+You can fully fine-tune the core ML models entirely on your own hardware without relying on cloud services. 
+
+**Train Intent Classifier**:
+```bash
+python src/engine/train_intent.py --data data/training_data.csv --output data/local_model_head.pkl
+```
+
+**Fine-tune Custom Sentiment**:
+```bash
+python src/engine/train_sentiment.py --epochs 3
+```
+
+### 3. Running the NLP Server
 Start the FastAPI server via Uvicorn:
 ```bash
 python -m uvicorn src.api.server:app --reload

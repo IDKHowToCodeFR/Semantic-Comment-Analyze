@@ -13,12 +13,14 @@ export const BatchProcessingView = () => {
   const [error, setError] = useState("");
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [previewLines, setPreviewLines] = useState<string[]>([]);
+  const [processedCount, setProcessedCount] = useState(0);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setFile(e.target.files[0]);
       setDownloadUrl(null);
       setPreviewLines([]);
+      setProcessedCount(0);
     }
   };
 
@@ -28,6 +30,7 @@ export const BatchProcessingView = () => {
     setError("");
     setDownloadUrl(null);
     setPreviewLines([]);
+    setProcessedCount(0);
 
     try {
       const formData = new FormData();
@@ -41,16 +44,31 @@ export const BatchProcessingView = () => {
       });
 
       if (!res.ok) throw new Error(await res.text());
-      const csvStr = await res.text();
 
-      // Create download URL
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Stream not available");
+
+      const decoder = new TextDecoder("utf-8");
+      let csvStr = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        csvStr += decoder.decode(value, { stream: true });
+        const lines = csvStr.split("\n").filter((l) => l.trim().length > 0);
+        
+        // Header doesn't count towards processed rows
+        setProcessedCount(Math.max(0, lines.length - 1));
+        setPreviewLines(lines.slice(0, 6)); // Keep preview fast
+      }
+      
+      csvStr += decoder.decode();
+
+      // Create download URL after complete
       const blob = new Blob([csvStr], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url);
-
-      // Parse preview
-      const lines = csvStr.split("\n").slice(0, 6); // Header + 5 rows max
-      setPreviewLines(lines.filter((l) => l.trim().length > 0));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Batch processing failed.");
     } finally {
@@ -59,30 +77,35 @@ export const BatchProcessingView = () => {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto flex flex-col gap-8">
+    <div className="py-24 px-8 max-w-[1200px] mx-auto flex flex-col gap-12">
       <div>
-        <h2 className="font-serif text-[28px] text-ink border-b border-hairline pb-2 mb-2">
-          Batch CSV Processing
-        </h2>
-        <p className="text-body text-[15px]">
+        <div className="flex items-center justify-between pb-2">
+          <h2 className="font-serif text-[36px] font-[300] tracking-[-0.36px] text-ink">
+            Batch Processing
+          </h2>
+          <span className="bg-surface-strong text-ink text-[12px] font-semibold tracking-[0.96px] uppercase rounded-full px-[10px] py-[4px]">
+            Sarcasm Engine Active
+          </span>
+        </div>
+        <p className="font-sans text-[16px] text-body tracking-[0.16px]">
           Upload a CSV file to process multiple texts simultaneously.
         </p>
       </div>
 
-      <FeatureCard className="flex flex-col gap-6">
+      <FeatureCard className="flex flex-col gap-6 p-6 rounded-[16px]">
         {/* Upload Area */}
-        <div className="border-2 border-dashed border-hairline-strong rounded-lg p-8 flex flex-col items-center justify-center bg-canvas-soft relative hover:border-ink transition-colors cursor-pointer">
+        <div className="border border-hairline-strong rounded-[12px] p-6 flex flex-col items-center justify-center bg-canvas-soft relative hover:border-ink transition-colors cursor-pointer">
           <input
             type="file"
             accept=".csv"
             onChange={handleFileChange}
             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
           />
-          <Upload className="text-muted mb-3" size={32} />
+          <Upload className="text-muted mb-3" size={24} />
           {file ? (
-            <p className="text-ink font-medium text-[15px]">{file.name}</p>
+            <p className="text-ink font-medium font-sans text-[16px]">{file.name}</p>
           ) : (
-            <p className="text-muted text-[15px]">
+            <p className="text-muted font-sans text-[15px]">
               Drag and drop a CSV file, or click to select
             </p>
           )}
@@ -90,18 +113,18 @@ export const BatchProcessingView = () => {
 
         <div className="grid grid-cols-2 gap-6">
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-medium text-body-strong">Target Column</label>
+            <label className="text-[14px] font-sans font-medium text-body-strong">Target Column</label>
             <input
               type="text"
               value={targetColumn}
               onChange={(e) => setTargetColumn(e.target.value)}
-              className="w-full bg-surface-card rounded-md px-3 py-2 text-ink font-sans text-[14px] border border-hairline-strong focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink transition-all"
+              className="w-full bg-surface-card rounded-[8px] px-4 py-3 text-ink font-sans text-[16px] border border-hairline-strong focus:border-ink focus:border-[2px] focus:outline-none transition-all"
               placeholder="e.g. text"
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center text-body-strong font-medium text-[14px]">
+            <div className="flex justify-between items-center text-body-strong font-sans font-medium text-[14px]">
               <label>Threshold</label>
               <span>{threshold.toFixed(2)}</span>
             </div>
@@ -112,38 +135,48 @@ export const BatchProcessingView = () => {
               step="0.05"
               value={threshold}
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="w-full accent-ink mt-2"
+              className="w-full accent-ink mt-3"
             />
           </div>
         </div>
 
-        <Button onClick={handleProcess} disabled={!file || loading} className="mt-2 w-full md:w-auto self-start">
-          {loading ? "Processing..." : "Process CSV"}
-        </Button>
-        {error && <p className="text-semantic-error text-[14px]">{error}</p>}
+        <div className="flex items-center gap-4 mt-2">
+          <Button onClick={handleProcess} disabled={!file || loading} className="w-full md:w-auto">
+            {loading ? "Processing..." : "Process CSV"}
+          </Button>
+          {loading && (
+            <p className="text-[14px] font-sans text-muted animate-pulse">
+              Streaming... processed {processedCount} rows
+            </p>
+          )}
+        </div>
+        
+        {error && <p className="text-semantic-error text-[14px] font-sans mt-2">{error}</p>}
       </FeatureCard>
 
       {/* Results Preview */}
-      {previewLines.length > 0 && downloadUrl && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-hairline pb-2">
-            <h3 className="font-serif text-[20px] text-ink">Preview (First 5 Rows)</h3>
-            <a
-              href={downloadUrl}
-              download={`processed_${file?.name || "data.csv"}`}
-              className="inline-flex items-center gap-2 text-[14px] font-medium text-ink hover:text-primary-active underline underline-offset-4"
-            >
-              <Download size={16} />
-              Download Full CSV
-            </a>
+      {previewLines.length > 0 && (
+        <div className="flex flex-col gap-6">
+          <div className="flex items-center justify-between border-b border-hairline pb-4">
+            <h3 className="font-serif text-[24px] font-[300] text-ink">Live Preview</h3>
+            {downloadUrl && (
+              <a
+                href={downloadUrl}
+                download={`processed_${file?.name || "data.csv"}`}
+                className="inline-flex items-center gap-2 text-[15px] font-sans font-medium text-ink hover:opacity-70 transition-opacity"
+              >
+                <Download size={16} />
+                Download Full CSV
+              </a>
+            )}
           </div>
 
-          <div className="overflow-x-auto border border-hairline rounded-lg">
-            <table className="w-full text-left text-[13px] whitespace-nowrap">
+          <div className="overflow-x-auto border border-hairline rounded-[12px]">
+            <table className="w-full text-left text-[14px] font-sans whitespace-nowrap">
               <thead>
                 <tr className="bg-surface-strong border-b border-hairline text-body-strong">
                   {previewLines[0].split(",").map((header, i) => (
-                    <th key={i} className="px-4 py-2 font-medium">
+                    <th key={i} className="px-4 py-3 font-medium">
                       {header.trim()}
                     </th>
                   ))}
@@ -153,8 +186,8 @@ export const BatchProcessingView = () => {
                 {previewLines.slice(1).map((row, i) => (
                   <tr key={i}>
                     {row.split(",").map((cell, j) => (
-                      <td key={j} className="px-4 py-2">
-                        {cell.trim().length > 30 ? cell.trim().substring(0, 30) + "..." : cell.trim()}
+                      <td key={j} className="px-4 py-3">
+                        {cell.trim().length > 40 ? cell.trim().substring(0, 40) + "..." : cell.trim()}
                       </td>
                     ))}
                   </tr>

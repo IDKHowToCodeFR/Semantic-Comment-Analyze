@@ -118,10 +118,12 @@ export const SingleAnalysisView = () => {
     const pos = label === "POSITIVE" ? score : 0;
     const neg = label === "NEGATIVE" ? score : 0;
     const neu = label === "NEUTRAL" ? score : 0;
+    const sarc = label === "NEGATIVE (SARCASTIC)" ? score : 0;
     return [
       { name: "Positive", value: pos, color: "#16a34a" },
       { name: "Neutral", value: neu, color: "#a8a29e" },
       { name: "Negative", value: neg, color: "#dc2626" },
+      { name: "Sarcastic", value: sarc, color: "#8b5cf6" },
     ];
   };
 
@@ -139,9 +141,14 @@ export const SingleAnalysisView = () => {
       {/* Input Section (Top) */}
       <div className="flex flex-col gap-6">
         <div>
-          <h2 className="font-serif text-[32px] text-ink border-b border-hairline pb-2 mb-4">
-            Analysis Input
-          </h2>
+          <div className="flex items-center justify-between border-b border-hairline pb-2 mb-4">
+            <h2 className="font-serif text-[32px] text-ink">
+              Analysis Input
+            </h2>
+            <span className="bg-surface-strong text-ink text-[12px] font-semibold tracking-[0.96px] uppercase rounded-full px-[10px] py-[4px]">
+              Sarcasm Engine Active
+            </span>
+          </div>
           <textarea
             className="w-full h-32 bg-surface-card rounded-md p-4 text-ink font-sans text-[15px] border border-hairline-strong focus:border-ink focus:outline-none focus:ring-1 focus:ring-ink transition-all resize-none shadow-sm"
             placeholder="Paste text or customer feedback here..."
@@ -244,7 +251,7 @@ export const SingleAnalysisView = () => {
                     title="Detected Tone" 
                     className="p-4 flex-1"
                   >
-                    <div className="flex items-center justify-center h-full min-h-[40px] text-[36px] font-serif font-light text-ink">
+                    <div className="flex-1 flex items-center justify-center min-h-[40px] text-[36px] font-serif font-light text-ink pb-2">
                       {result.tone}
                     </div>
                   </FeatureCard>
@@ -253,7 +260,7 @@ export const SingleAnalysisView = () => {
                     title="Urgency Level" 
                     className="p-4 flex-1"
                   >
-                    <div className="flex items-center justify-center h-full min-h-[40px] text-[24px] font-sans font-bold" style={{ color: result.urgency === 'High' ? '#dc2626' : result.urgency === 'Medium' ? '#f97316' : '#16a34a' }}>
+                    <div className="flex-1 flex items-center justify-center min-h-[40px] text-[24px] font-sans font-bold pb-2" style={{ color: result.urgency === 'High' ? '#dc2626' : result.urgency === 'Medium' ? '#f97316' : '#16a34a' }}>
                       {result.urgency}
                     </div>
                   </FeatureCard>
@@ -262,9 +269,9 @@ export const SingleAnalysisView = () => {
                 {/* Right Side: Recommended Action (Full height) */}
                 <FeatureCard 
                   title="Recommended Action" 
-                  className="p-4"
+                  className="p-4 h-full"
                 >
-                  <div className="flex items-center justify-center h-full min-h-[160px] text-[48px] font-serif font-light text-ink text-center px-4 leading-[1.08] tracking-tight">
+                  <div className="flex-1 flex items-center justify-center min-h-[160px] text-[48px] font-serif font-light text-ink text-center px-4 leading-[1.08] tracking-tight pb-4">
                     {result.recommended_action}
                   </div>
                 </FeatureCard>

@@ -37,26 +37,31 @@ def get_classifier_head():
         os.path.join(os.path.dirname(__file__), "../../data/local_model_head.pkl")
     )
     if not os.path.exists(head_path):
-        raise RuntimeError(
-            "data/local_model_head.pkl not found. Run train_model.py first."
+        raise FileNotFoundError(
+            "data/local_model_head.pkl not found. Run train_intent.py first."
         )
     return joblib.load(head_path)
 
 
 @lru_cache(maxsize=1)
 def get_ner_model():
-    return pipeline("ner", aggregation_strategy="simple", device=-1)
+    return pipeline("ner", aggregation_strategy="simple", device=-1)  # type: ignore
 
 
 @lru_cache(maxsize=1)
 def get_sentiment_model():
-    return pipeline("sentiment-analysis", device=-1)
+    return pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment-latest", device=-1)  # type: ignore
+
+
+@lru_cache(maxsize=1)
+def get_irony_model():
+    return pipeline("text-classification", model="cardiffnlp/twitter-roberta-base-irony", device=-1)  # type: ignore
 
 
 def get_embeddings_batch(texts: list[str]) -> np.ndarray:
     model = get_embedding_model()
     # SentenceTransformer handles empty strings gracefully
-    safe_texts = [str(t) if t else "" for t in texts]
+    safe_texts = [t if t else "" for t in texts]
     return model.encode(safe_texts, batch_size=32)
 
 
@@ -71,8 +76,8 @@ def classify_intents_batch(
 ) -> list[dict[str, Any]]:
     valid_texts, valid_indices = [], []
     for i, t in enumerate(texts):
-        if t and str(t).strip() and str(t) != "nan":
-            valid_texts.append(str(t))
+        if t and t.strip() and t != "nan":
+            valid_texts.append(t)
             valid_indices.append(i)
 
     results = [
@@ -158,15 +163,28 @@ def explain_intent(text: str) -> list[dict[str, Any]]:
 def analyze_sentiment(text: str) -> dict[str, Any]:
     if not text or not text.strip():
         return {"label": "NEUTRAL", "score": 0.0}
-    return get_sentiment_model()(text, truncation=True, max_length=512)[0]
+    return analyze_sentiments_batch([text])[0]
 
 
 def analyze_sentiments_batch(texts: list[str]) -> list[dict[str, Any]]:
     valid_texts = [
-        str(t) if t and str(t).strip() and str(t) != "nan" else "Neutral" for t in texts
+        t if t and t.strip() and t != "nan" else "Neutral" for t in texts
     ]
     model = get_sentiment_model()
-    return model(valid_texts, truncation=True, max_length=512, batch_size=32)
+    sentiments = model(valid_texts, truncation=True, max_length=512, batch_size=32)
+
+    irony_model = get_irony_model()
+    ironies = irony_model(valid_texts, truncation=True, max_length=512, batch_size=32)
+
+    results = []
+    for sent, irony in zip(sentiments, ironies):
+        label = sent["label"].upper()
+        if (irony["label"] == "irony" or irony["label"] == "LABEL_1") and irony["score"] > 0.5:
+            if label == "POSITIVE":
+                label = "NEGATIVE (SARCASTIC)"
+        results.append({"label": label, "score": sent["score"]})
+
+    return results
 
 
 def extract_entities(text: str) -> list[dict[str, Any]]:
@@ -177,7 +195,7 @@ def extract_entities(text: str) -> list[dict[str, Any]]:
 
 def extract_entities_batch(texts: list[str]) -> list[list[dict[str, Any]]]:
     valid_texts = [
-        str(t) if t and str(t).strip() and str(t) != "nan" else "" for t in texts
+        t[:2000] if t and t.strip() and t != "nan" else "" for t in texts
     ]
     ner = get_ner_model()
     # Batch process ignoring empty strings where possible

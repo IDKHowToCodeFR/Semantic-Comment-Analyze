@@ -6,8 +6,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const garamond = EB_Garamond({ subsets: ["latin"], variable: "--font-garamond", weight: "400" }); // 300 is unavailable in standard EB_Garamond via Google Fonts without specific handling, falling back to 400
 
 export const metadata: Metadata = {
-  title: "OpenCode | Semantic Analysis",
-  description: "Extract structure, intent, and sentiment from raw feedback.",
+  title: "Semantic Analysis",
+  description: "Advanced semantic analysis for comments and text data",
 };
 
 export default function RootLayout({
