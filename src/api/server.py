@@ -1,6 +1,8 @@
+import asyncio
 import io
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +15,16 @@ from src.engine import evaluation, nlp_engine
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Semantic NLP Platform API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    nlp_engine.get_embedding_model()
+    nlp_engine.get_classifier_head()
+    nlp_engine.get_ner_model()
+    nlp_engine.get_sentiment_model()
+    nlp_engine.get_irony_model()
+    yield
+
+app = FastAPI(title="Semantic NLP Platform API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,27 +37,27 @@ app.add_middleware(
 class AnalyzeRequest(BaseModel):
     text: str
     threshold: float = 0.5
+    include_explanation: bool = False
 
 
 @app.post("/api/analyze")
-def analyze_text(request: AnalyzeRequest):
+async def analyze_text(request: AnalyzeRequest):
     try:
-        intent = nlp_engine.classify_intent(request.text, request.threshold)
-        sentiment = nlp_engine.analyze_sentiment(request.text)
-        explainability = nlp_engine.explain_intent(request.text)
+        ml_results = await nlp_engine.analyze_full(
+            request.text, 
+            request.threshold, 
+            request.include_explanation
+        )
 
         # Ponytail Ultra features
-        tone = evaluation.analyze_tone(intent["top_intent"], sentiment)
-        urgency = evaluation.calculate_urgency(intent["top_intent"], sentiment)
-        action = evaluation.recommend_action(intent["top_intent"], urgency, sentiment)
+        business_context = evaluation.evaluate_business_context(
+            ml_results["intent"]["top_intent"], 
+            ml_results["sentiment"]
+        )
 
         return {
-            "intent": intent,
-            "sentiment": sentiment,
-            "explainability": explainability,
-            "tone": tone,
-            "urgency": urgency,
-            "recommended_action": action,
+            **ml_results,
+            **business_context,
         }
     except Exception as e:
         logger.exception("Error during analysis")
@@ -65,7 +76,6 @@ def process_batch(
     except Exception as e:
         logger.exception("Error during batch processing")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # Mount frontend
 frontend_dist = os.path.join(

@@ -1,0 +1,24 @@
+graph TD
+    A[Client Request] -->|REST API| B(FastAPI Server)
+    
+    subaxis[NLP Pipeline]
+    B --> C{NLP Engine}
+    C -->|Embeddings| D[MiniLM-L6 Model]
+    D --> E[Custom Classifier Head]
+    C --> F[HF Sentiment Pipeline]
+    C --> G[HF NER Pipeline]
+    C --> H[Occlusion Algorithm]
+    
+    subaxis[Business Logic]
+    E --> I[Intent & Confidence]
+    F --> J[Sentiment]
+    G --> K[Entities]
+    I --> L(Heuristics Evaluator)
+    J --> L
+    L --> M[Urgency, Tone, Action]
+    
+    M --> N[Aggregated JSON Response]
+    H -->|Word-Level Explanations| N
+    K --> N
+    
+    N -->|REST API Response| A
