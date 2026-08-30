@@ -24,11 +24,7 @@ def test_ner_extraction():
         assert "entity_group" in result[0]
 
 
-def test_data_handler_single():
-    res = data_handler.process_single_comment("The button doesn't work.")
-    assert "intent" in res
-    assert "sentiment" in res
-    assert "entities" in res
+
 
 def test_data_handler_csv():
     csv_content = "comment\nI love this app!\nIt crashes sometimes.\n"

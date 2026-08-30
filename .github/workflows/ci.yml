@@ -25,4 +25,5 @@ jobs:
         
     - name: Run Tests
       run: |
+        python src/engine/train_intent.py
         pytest tests/
